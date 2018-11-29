@@ -1,50 +1,51 @@
-package bank
+package coins
 
 import (
+	"strconv"
+
 	"github.com/QOSGroup/qbase/baseabci"
 	"github.com/QOSGroup/qbase/context"
 	"github.com/QOSGroup/qbase/txs"
 	"github.com/QOSGroup/qbase/types"
-	qosapp "github.com/QOSGroup/qos/app"
 	"github.com/QOSGroup/qstars/baseapp"
 	"github.com/QOSGroup/qstars/x/common"
+	"github.com/QOSGroup/qstars/x/jianqian"
 	"github.com/prometheus/common/log"
 	go_amino "github.com/tendermint/go-amino"
-	"strconv"
 	abci "github.com/tendermint/tendermint/abci/types"
 	ctx "github.com/QOSGroup/qbase/context"
 )
 
-type BankStub struct {
+const QSCResultMapperName = "coinsResult"
+const CoinsMapper = "CoinsMapper"
+const COINNAME = "AOE"
+
+type CoinsStub struct {
 	baseapp.BaseXTransaction
 }
 
-func NewBankStub() BankStub {
-	return BankStub{}
+func NewCoinsStub() CoinsStub {
+	return CoinsStub{}
 }
 
-func (kv BankStub) StartX(base *baseapp.QstarsBaseApp) error {
+func (cstub CoinsStub) StartX(base *baseapp.QstarsBaseApp) error {
+	var coinsMapper = jianqian.NewCoinsMapper(CoinsMapper)
+	base.Baseapp.RegisterMapper(coinsMapper)
 
-	var qosMapper = common.NewKvMapper(QSCResultMapperName)
+	var qosMapper = jianqian.NewCoinsMapper(QSCResultMapperName)
 	base.Baseapp.RegisterMapper(qosMapper)
-
 	return nil
 }
-
-func (kv BankStub) RegisterCdc(cdc *go_amino.Codec) {
-	cdc.RegisterConcrete(&WrapperSendTx{}, "qstars/WrapperSendTx", nil)
-	qosapp.RegisterCodec(cdc)
-}
-
-func (kv BankStub) EndBlockNotify(ctx context.Context){
+func (cstub CoinsStub) EndBlockNotify(ctx context.Context) {
 
 }
 
-func (kv BankStub) CustomerQuery(ctx ctx.Context, route []string, req abci.RequestQuery) (res []byte, err types.Error){
-	return nil,nil
+func (cstub CoinsStub) RegisterCdc(cdc *go_amino.Codec) {
+	cdc.RegisterConcrete(&CoinAOETx{}, "jianqian/CoinAOETx", nil)
+	cdc.RegisterConcrete(&DispatchAOETx{}, "jianqian/DispatchAOETx", nil)
 }
 
-func (kv BankStub) ResultNotify(ctx context.Context, txQcpResult interface{}) *types.Result {
+func (cstub CoinsStub) ResultNotify(ctx context.Context, txQcpResult interface{}) *types.Result {
 	in := txQcpResult.(*txs.QcpTxResult)
 	log.Debugf("ResultNotify QcpOriginalSequence:%s, result:%+v", string(in.QcpOriginalSequence), txQcpResult)
 	var resultCode types.ABCICodeType
@@ -53,29 +54,20 @@ func (kv BankStub) ResultNotify(ctx context.Context, txQcpResult interface{}) *t
 		log.Errorf("ResultNotify ConvertTxQcpResult error.")
 		resultCode = types.ABCICodeType(types.CodeTxDecode)
 	} else {
-		//get original cross chain transaction
-		//orginalSeq := qcpTxResult.QcpOriginalSequence
-		//orginalTx := baseabci.GetQcpMapper(ctx).GetChainOutTxs("", orginalSeq)
-		//if orginalTx.IsResult == false {
-		//	log.Errorf("ResultNotify Cross chain result is not a type of result.")
-		//	resultCode = types.ABCICodeType(types.CodeInternal)
-		//} else {
-		//
-		//}
 		log.Errorf("ResultNotify update status")
 
 		orginalTxHash := in.QcpOriginalExtends //orginalTx.abc
 		kvMapper := ctx.Mapper(QSCResultMapperName).(*common.KvMapper)
-		initValue :=""
-		kvMapper.Get([]byte(orginalTxHash),&initValue)
-		if initValue!="-1"{
+		initValue := ""
+		kvMapper.Get([]byte(orginalTxHash), &initValue)
+		if initValue != "-1" {
 			log.Info("This is not my response.")
 			return nil
 		}
 		//put result to map for client query
 		c := strconv.FormatInt((int64)(qcpTxResult.Result.Code), 10)
-		c = c+" "+qcpTxResult.Result.Log
-		log.Errorf("--------update key:"+QSCResultMapperName+" key:"+ orginalTxHash +" value:" + c)
+		c = c + " " + qcpTxResult.Result.Log
+		log.Errorf("--------update key:" + QSCResultMapperName + " key:" + orginalTxHash + " value:" + c)
 		kvMapper.Set([]byte(orginalTxHash), c)
 		resultCode = types.ABCICodeType(types.CodeOK)
 	}
@@ -83,4 +75,7 @@ func (kv BankStub) ResultNotify(ctx context.Context, txQcpResult interface{}) *t
 		Code: resultCode,
 	}
 	return &rr
+}
+func (kv CoinsStub) CustomerQuery(ctx ctx.Context, route []string, req abci.RequestQuery) (res []byte, err types.Error){
+	return nil,nil
 }

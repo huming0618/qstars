@@ -2,6 +2,13 @@ package main
 
 import (
 	"github.com/QOSGroup/qstars/star"
+
+	"github.com/QOSGroup/qstars/x/jianqian/buyad"
+	"github.com/QOSGroup/qstars/x/jianqian/investad"
+
+	"github.com/QOSGroup/qstars/x/jianqian/article"
+	"github.com/QOSGroup/qstars/x/jianqian/coins"
+
 	"os"
 
 	"github.com/QOSGroup/qbase/version"
@@ -72,6 +79,15 @@ func main() {
 			kvstore.GetKVCmd(cdc),
 		)...)
 
+
+	rootCmd.AddCommand(
+		client.PostCommands(
+			coins.DispatchAOECmd(cdc),
+			article.NewArticleCmd(cdc),
+			article.QueryArticleCmd(cdc),
+
+		)...)
+
 	// add proxy, version and key info
 	rootCmd.AddCommand(
 		client.LineBreak,
@@ -79,6 +95,11 @@ func main() {
 	//	keys.Commands(),
 	//	client.LineBreak,
 	//	version.VersionCmd,
+	)
+
+	rootCmd.AddCommand(
+		buyad.BuyadCmd(cdc),
+		investad.InvestadCmd(cdc),
 	)
 
 	// prepare and add flags
